@@ -23,6 +23,10 @@ class TwitchAuth {
     this._redirectUri = redirectUri;
     this._accessToken = accessToken;
     this._refreshToken = refreshToken;
+    this._scopes = [
+      'user:read:email',
+      'channel:read:subscriptions'
+    ];
   }
 
   connect() {
@@ -78,7 +82,7 @@ class TwitchAuth {
       `client_id=${encodeURIComponent(this._clientId)}` + 
       `&redirect_uri=${encodeURIComponent(this._redirectUri)}` + 
       `&response_type=code` + 
-      `&scope=channel:read:subscriptions`;
+      `&scope=${encodeURIComponent(this._scopes.join(' '))}`;
   }
 };
 

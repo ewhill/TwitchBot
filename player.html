@@ -30,17 +30,19 @@
 			display: none;
 		}
 		
-		.banner {
+		#banner {
 			padding: 10px;
-			width: 100%;
+			position: fixed;
+			top: 0;
+			width: calc(100% - 20px);
 		}
 		
-		.banner.success {
+		#banner.success {
 			background: rgb(82, 200, 124);
 			color: white;
 		}
 		
-		.banner.error {
+		#banner.error {
 			background: rgb(200, 124, 82);
 			color: white;
 			font-weight: bold;
@@ -224,10 +226,19 @@
 				setTimeout(() => {
 					banner.classList.remove('error');
 					banner.querySelector('span').innerText = "";
-				}, 30000);
+				}, 10000);
 			}
 			
 			banner.querySelector('span').innerText = message;
+		};
+
+		const removeErrorMessage = () => {
+			let banner = document.getElementById('banner');
+			
+			if (banner.classList.contains('error')) {
+				banner.classList.remove('error');
+				banner.querySelector('span').innerText = "";
+			}
 		};
 		
 		const setPlayerContent = (data) => {
@@ -250,7 +261,14 @@
 		};
 		
 		const getPlaying = async () => {
-			let response = await fetch("/playing");
+			let response;
+
+			try {
+				response = await fetch("/playing");
+			} catch(err) {
+				showErrorMessage("Failed to get what's playing!");
+				throw err;
+			}
 			
 			if (response.status !== 200) {
 				showErrorMessage("Failed to get what's playing!");
@@ -260,6 +278,8 @@
 					content.classList.add("hidden");
 				}
 			} else {
+				removeErrorMessage();
+
 				let content = document.querySelector('.content');
 				if (content.classList.contains("hidden")) {
 					content.classList.remove("hidden");

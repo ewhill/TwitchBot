@@ -4,14 +4,14 @@ const path = require('path');
 const SpotifyWebApi = require('spotify-web-api-node');
 const Tmi = require('tmi.js');
 
-const TwitchAuthMiddleware = require('./twitchAuthMiddleware');
 const SpotifyAuthMiddleware = require('./spotifyAuthMiddleware');
+const TwitchAuthMiddleware = require('./twitchAuthMiddleware');
+const TwitchWebhookClient = require('./twitchWebhookClient');
 
 const TmiClient = Tmi.client;
 
 const app = express();
 const port = 7562;
-const twitchWebHookPort = 7563;
 
 const readJsonAsync = (path) => {
 	return new Promise((resolve, reject) => {
@@ -51,7 +51,7 @@ const main = async () => {
 		redirectUri: `http://localhost:${port}/twitchauthcallback`
 	};
 
-	const twitchAuthMiddleware = TwitchAuthMiddleware(twitchAuthOptions);
+	// const twitchAuthMiddleware = TwitchAuthMiddleware(twitchAuthOptions);
 
 	const spotifyClient = new SpotifyWebApi({
 		clientId: spotifyClientId,
@@ -68,47 +68,60 @@ const main = async () => {
 
 	await twitchClient.connect();
 
+	/*
+	const twitchWebhookClient = new TwitchWebhookClient({
+		clientId: twitchClientId,
+		serverHref: `http://localhost:${port}/twitchwebhooks`
+	});
+	*/
+
 	let currentlyPlaying;
 
-	const getPlaying = () => {
-		return new Promise((resolve, reject) => {
-			if(!spotifyClient.getAccessToken()) {
-				return reject(`Spotify client does not have prior auth!`);
+	const getPlaying = async () => {
+		if(!spotifyClient.getAccessToken()) {
+			return Promise.reject(`Spotify client does not have prior auth!`);
+		}
+
+		let clientResponse;
+
+		try {
+			clientResponse = await spotifyClient.getMyCurrentPlayingTrack();
+		} catch(err) {
+			currentlyPlaying = null;
+			console.error(err);
+			throw err;
+		}
+
+		if (clientResponse.statusCode === 200) {
+			const isNewSong = !currentlyPlaying 
+				|| currentlyPlaying.body.item.id !== 
+					clientResponse.body.item.id;
+
+			if (isNewSong) {
+				currentlyPlaying = clientResponse;
+
+				let artist = clientResponse.body.item.artists
+					.map(i => i.name).join(", ");
+				let link = currentlyPlaying.body.item.external_urls.spotify;
+				let msg = `🎶🎵🎼 Now playing ` + 
+					`"${currentlyPlaying.body.item.name}" by ${artist} on ` + 
+					`Spotify. Like what you hear? Take a listen on Spotify: ` + 
+					`${link}`;
+
+				console.log(`Sending Twitch message: \`${msg}\``);
+				twitchClient.say(twitchChannelName, msg);
 			}
 
-			spotifyClient.getMyCurrentPlayingTrack()
-				.then(data => {
-					if (data.statusCode === 200) {
-						const isNewSong = !currentlyPlaying 
-							|| currentlyPlaying.body.item.id !==
-								 data.body.item.id;
+			return Promise.resolve();
+		} else if (clientResponse.statusCode === 204) {
+			// 204 status means nothing is playing.
+			currentlyPlaying = null;
+			return Promise.resolve();
+		}
 
-						if (isNewSong) {
-							currentlyPlaying = data;
-							let artist = data.body.item.artists
-									.map(i => i.name).join(", ");
-							let link = 
-								currentlyPlaying.body.item.external_urls.spotify;
-							let msg = `🎶🎵🎼 Now playing ` + 
-								`"${currentlyPlaying.body.item.name}" by ` + 
-								`${artist} on Spotify. Like what you hear? ` + 
-								`Take a listen on Spotify: ${link}`;
-							console.log(`Sending Twitch message: \`${msg}\``);
-							twitchClient.say(twitchChannelName, msg);
-						}
-						return resolve();
-					} else {
-						currentlyPlaying = null;
-						console.error(data);
-						return reject(data);
-					}
-				})
-				.catch(err => {
-					currentlyPlaying = null;
-					console.error(err);
-					return reject(err);
-				});
-			});
+		currentlyPlaying = null;
+		console.error(clientResponse);
+		throw new Error(`Unexpected response from Spotify Client!`);
 	};
 
 	spotifyAuthMiddleware.on('credentials', ({ accessToken, refreshToken }) => {
@@ -117,18 +130,45 @@ const main = async () => {
 		spotifyClient.setRefreshToken(refreshToken);
 
 		// Start polling for currently played song...
-		getPlaying();
 		setInterval(getPlaying, 10000);
 	})
 	app.use('/', spotifyAuthMiddleware.injector);
 
+	/*
 	twitchAuthMiddleware.on('credentials', ({ accessToken, refreshToken }) => {
-		// TODO: Create Twitch client.
-		// console.log('Setting Twitch client tokens...');
-		// twitchClient.setAccessToken(accessToken);
-		// twitchClient.setRefreshToken(refreshToken);
+		console.log('Setting Twitch client tokens...');
+		twitchWebhookClient.setAccessToken(accessToken);
+		// twitchWebhookClient.setRefreshToken(refreshToken);
+
+		twitchWebhookClient.getUserFromLogin(twitchChannelName)
+			.then(userInfo => {
+				const userId = userInfo.data[0].id;
+
+				if (userId) {
+					return twitchWebhookClient.subscribe(
+							'users/follows',
+							{
+								first: 1,
+								to_id: userId
+							});
+				} else {
+					Promise.reject(
+						new Error('Failed to get Twitch channel id!'));
+				}
+			})
+			.then(userFollowsSubscriptionId => {
+				twitchWebhookClient.on(userFollowsSubscriptionId, (req) => {
+					console.log(req);
+					console.log("NEW FOLLOWER ALERT!!!");
+				});
+
+				return Promise.resolve();
+			});
 	})
 	app.use('/', twitchAuthMiddleware.injector);
+
+	app.use('/', twitchWebhookClient.injector);
+	*/
 
 	// Statically host everything in '/public'.
 	app.use('/public', express.static('public'));
