@@ -22,7 +22,7 @@ module.exports = (options) => {
 	const refreshaccessToken = () => {
 		// clientId, clientSecret and refreshToken has been set on the api 
 		// object previous to this call.
-		spotifyClient.refreshAccessToken().then(
+		spotifyAuth.refreshAccessToken().then(
 			onAuthorizationCodeGrant,
 			function(err) {
 				console.log('Could not refresh access token', err);
@@ -42,8 +42,8 @@ module.exports = (options) => {
 				seconds = 3600;
 			}
 
-			seconds = Math.max(0, seconds - 60); // Give a 60s buffer
-			setTimeout(refreshaccessToken, seconds * 1000);
+			seconds = Math.max(0, seconds - 60); // Give a 30s buffer
+			setInterval(refreshaccessToken, seconds * 1000);
 		}
 
 		if (data.hasOwnProperty('access_token')) {

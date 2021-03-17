@@ -51,7 +51,7 @@ const main = async () => {
 		redirectUri: `http://localhost:${port}/twitchauthcallback`
 	};
 
-	// const twitchAuthMiddleware = TwitchAuthMiddleware(twitchAuthOptions);
+	const twitchAuthMiddleware = TwitchAuthMiddleware(twitchAuthOptions);
 
 	const spotifyClient = new SpotifyWebApi({
 		clientId: spotifyClientId,
@@ -68,12 +68,12 @@ const main = async () => {
 
 	await twitchClient.connect();
 
-	/*
+	
 	const twitchWebhookClient = new TwitchWebhookClient({
 		clientId: twitchClientId,
 		serverHref: `http://localhost:${port}/twitchwebhooks`
 	});
-	*/
+	
 
 	let currentlyPlaying;
 
@@ -134,11 +134,12 @@ const main = async () => {
 	})
 	app.use('/', spotifyAuthMiddleware.injector);
 
-	/*
+	/**
+		Set up the Twitch client and included webhooks.
+	*/
 	twitchAuthMiddleware.on('credentials', ({ accessToken, refreshToken }) => {
 		console.log('Setting Twitch client tokens...');
 		twitchWebhookClient.setAccessToken(accessToken);
-		// twitchWebhookClient.setRefreshToken(refreshToken);
 
 		twitchWebhookClient.getUserFromLogin(twitchChannelName)
 			.then(userInfo => {
@@ -168,7 +169,7 @@ const main = async () => {
 	app.use('/', twitchAuthMiddleware.injector);
 
 	app.use('/', twitchWebhookClient.injector);
-	*/
+	
 
 	// Statically host everything in '/public'.
 	app.use('/public', express.static('public'));

@@ -29,40 +29,18 @@ class SpotifyAuth {
   }
 
   connect() {
-    return new Promise((resolve, reject) => {
-      const requestBody = querystring.stringify({
-          'code': this._authorizationCode,
-          'grant_type': "authorization_code",
-          'redirect_uri': this._redirectUri
+    return this._post('/api/token', {
+        'code': this._authorizationCode,
+        'grant_type': "authorization_code",
+        'redirect_uri': this._redirectUri
       });
+  }
 
-      const authorization = 
-        Buffer.from(this._clientId+':'+this._clientSecret).toString('base64');
-
-      const requestOptions = {
-        hostname: this._urlBase,
-        port: 443,
-        path: "/api/token",
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-length': requestBody.length,
-          'Authorization': `Basic ${authorization}`
-        }
-      };
-
-      console.log(`Sending request: ${requestBody}`);
-
-      var req = https.request(requestOptions, (res) => {
-        let response = '';
-        res.on('data', (data) => response += data);
-        res.on('end', () => resolve(JSON.parse(response)));
+  refreshAccessToken() {
+    return this._post('/api/token', {
+        'grant_type': "refresh_token",
+        'refresh_token': this._refreshToken,
       });
-
-      req.on('error', reject);
-      req.write(requestBody);
-      req.end();
-    });
   }
 
   set accessToken(token) {
@@ -84,6 +62,39 @@ class SpotifyAuth {
         `&client_id=${this._clientId}` +
         (this._scope ? `&scope=${encodeURIComponent(this._scope)}` : ``) +
         `&redirect_uri=${encodeURIComponent(this._redirectUri)}`;
+  }
+
+  _post(path, body = {}) {
+    return new Promise((resolve, reject) => {
+      const requestBody = querystring.stringify(body);
+
+      const authorization = 
+        Buffer.from(this._clientId+':'+this._clientSecret).toString('base64');
+
+      const requestOptions = {
+        hostname: this._urlBase,
+        port: 443,
+        path: path,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-length': requestBody.length,
+          'Authorization': `Basic ${authorization}`
+        }
+      };
+
+      console.log(`Sending request: ${requestBody}`);
+
+      var req = https.request(requestOptions, (res) => {
+        let response = '';
+        res.on('data', (data) => response += data);
+        res.on('end', () => resolve(JSON.parse(response)));
+      });
+
+      req.on('error', reject);
+      req.write(requestBody);
+      req.end();
+    });
   }
 };
 

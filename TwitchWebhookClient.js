@@ -76,7 +76,7 @@ class TwitchWebhookClient {
 		this._eventEmitter = new EventEmitter();
 		this._hubBaseUrl = hubBaseUrl || 'https://api.twitch.tv/helix';
 		this._leaseSeconds = leaseSeconds || 864000;
-		this._secret = secret || crypto.randomBytes(32).toString('hex');
+		this._secret = secret || crypto.randomBytes(16).toString('hex');
 		this._serverHref = serverHref || `http://localhost`;
 		this._subscriptions = [];
 	}
@@ -87,7 +87,10 @@ class TwitchWebhookClient {
 
 	post(body) {
 	    return new Promise((resolve, reject) => {
-	      const requestBody = JSON.stringify(body);
+	      const requestBody = JSON.stringify({
+	      	...body,
+	      	'hub.secret': this._secret
+	      });
 
 	      const requestOptions = {
 	        hostname: this._apiBase,
@@ -109,10 +112,7 @@ class TwitchWebhookClient {
 	      	res.on('data', data => response+=data);
 	        res.on('end', () => {
 	        	if (res.statusCode >= 200 && res.statusCode < 300) {
-	        		const secret = res.headers['X-Hub-Signature'];
-	        		//TODO: Verify secret here.
-
-	        		return resolve();
+	        		return resolve(response);
 	        	}
 
 	        	return reject(response);
@@ -157,7 +157,6 @@ class TwitchWebhookClient {
 				'hub.callback': webhookCallback,
 				'hub.lease_seconds': leaseSeconds,
 				'hub.mode': 'subscribe',
-				'hub.secret': this._secret,
 				'hub.topic': topicUrl
 			})
 			.then(result => {
@@ -191,7 +190,6 @@ class TwitchWebhookClient {
 				'hub.callback': webhookCallback,
 				'hub.lease_seconds': leaseSeconds,
 				'hub.mode': 'unsubscribe',
-				'hub.secret': this._secret,
 				'hub.topic': topicUrl
 			})
 			.then(result => {
@@ -232,6 +230,22 @@ class TwitchWebhookClient {
 		this._eventEmitter.on(event, callback);
 	}
 
+	isWebhookCallbackRequestValid(req) {
+		if (req && req.headers && req.headers['x-hub-signature']) {
+    		const [ alg, hash ] = 
+    			req.headers['x-hub-signature'].split('=');
+    		const computed = 
+    			crypto.createHmac(alg, this._secret)
+    				.update(response).digest('hex');
+    		if(hash !== computed) {
+    			return false;
+    		}
+
+    		return true;
+    	}
+    	return false
+	}
+
 	get injector() {
 		return (req, res, next) => {
 			const path = url.parse(req.originalUrl).pathname;
@@ -241,9 +255,16 @@ class TwitchWebhookClient {
 				const id = path.match(/[0-9a-f]{64}/ig)[0];
 
 				if (this._subscriptions.hasOwnProperty(id)) {
-					this._eventEmitter.emit(id, req);
-					res.statusCode = 200;
-					res.send();
+					const isValid = this.isWebhookCallbackRequestValid(req);
+					if(isValid) { 
+						this._eventEmitter.emit(id, req);
+						res.statusCode = 200;
+						res.headers['Content-Type'] = 'text/plain';
+						res.send(req.query['hub.challenge'] || 'ok');
+					} else {
+						res.statusCode = 500;
+						res.end('');
+					}
 					return;
 				}
 			}
