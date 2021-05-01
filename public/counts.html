@@ -1,0 +1,106 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>SpotBot</title>
+
+	<link href='http://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'>
+
+	<style>
+		html, body {
+			color: #ccc;
+			height: 100%;
+			margin: 0;
+			min-height: 100%;
+			min-width: 100%;
+			overflow: hidden;
+			width: 100%;
+		}
+		
+		body {
+			align-items: center;
+			display: flex;
+			font-family: 'Roboto', sans-serif;
+			font-size: 18px;
+			justify-content: center;
+		}
+
+		.content {
+			width: 100%;
+		}
+
+		.section {
+			display: inline-block;
+			float: left;
+			max-width: 50%;
+			text-align: center;
+			width: 50%;
+		}
+
+		.section:first-child {
+			border-right: 2px solid black;
+			margin-right: -1px;
+		}
+		.section:first-child {
+			margin-left: -1px;
+		}
+	</style>
+</head>
+
+<body>
+	<script>
+		const setFollowersContent = (count) => {
+			if (count) {
+				let content = document.querySelector('.followers');
+				content.innerText = count;
+			}
+		};
+
+		const setSubscribersContent = (count) => {
+			if (count) {
+				let content = document.querySelector('.subscribers');
+				content.innerText = count;
+			}
+		};
+		
+		const getFollowersCount = async () => {
+			const response = await fetch("/counts/followers");
+			
+			if (response.status !== 200) {
+				console.error(response);
+			} else {
+				let count = await response.text();
+				setFollowersContent(count);
+			}
+		};
+
+		const getSubscribersCount = async () => {
+			const response = await fetch("/counts/subscribers");
+			
+			if (response.status !== 200) {
+				console.error(response);
+			} else {
+				let count = await response.text();
+				setSubscribersContent(count);
+			}
+		};
+		
+		getFollowersCount().then(() => {
+				setInterval(getFollowersCount, 30000);
+			});
+		getSubscribersCount().then(() => {
+				setInterval(getSubscribersCount, 30000);
+			});
+	</script>
+
+	<div class="content">
+		<div class="section">
+			<span class="followers"></span> followers
+		</div>
+		<div class="section">
+			<span class="subscribers"></span> subscribers
+		</div>
+	</div>
+</body>
+</html>

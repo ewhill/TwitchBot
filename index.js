@@ -6,6 +6,7 @@ const Tmi = require('tmi.js');
 
 const SpotifyAuthMiddleware = require('./spotifyAuthMiddleware');
 const TwitchAuthMiddleware = require('./twitchAuthMiddleware');
+const TwitchCountsClient = require('./twitchCountsClient');
 const TwitchWebhookClient = require('./twitchWebhookClient');
 
 const TmiClient = Tmi.client;
@@ -69,6 +70,9 @@ const main = async () => {
 	await twitchClient.connect();
 
 	
+	const twitchCountsClient = new TwitchCountsClient({
+		clientId: twitchClientId
+	});
 	const twitchWebhookClient = new TwitchWebhookClient({
 		clientId: twitchClientId,
 		serverHref: `http://localhost:${port}/twitchwebhooks`
@@ -76,6 +80,7 @@ const main = async () => {
 	
 
 	let currentlyPlaying;
+	let songPollingInterval;
 
 	const getPlaying = async () => {
 		if(!spotifyClient.getAccessToken()) {
@@ -130,7 +135,10 @@ const main = async () => {
 		spotifyClient.setRefreshToken(refreshToken);
 
 		// Start polling for currently played song...
-		setInterval(getPlaying, 10000);
+		if(songPollingInterval) {
+			clearInterval(songPollingInterval)
+		}
+		songPollingInterval = setInterval(getPlaying, 10000);
 	})
 	app.use('/', spotifyAuthMiddleware.injector);
 
@@ -139,6 +147,7 @@ const main = async () => {
 	*/
 	twitchAuthMiddleware.on('credentials', ({ accessToken, refreshToken }) => {
 		console.log('Setting Twitch client tokens...');
+		twitchCountsClient.setAccessToken(accessToken);
 		twitchWebhookClient.setAccessToken(accessToken);
 
 		twitchWebhookClient.getUserFromLogin(twitchChannelName)
@@ -188,6 +197,32 @@ const main = async () => {
 		
 		res.statusCode = currentlyPlaying.statusCode;
 		res.send(currentlyPlaying.body);
+	});
+
+	app.get('/counts/followers', (req, res) => {
+		twitchCountsClient.getFollowers(twitchChannelName)
+			.then(followersCount => {
+				res.statusCode = 200;
+				res.send(`${followersCount}`);
+			})
+			.catch(err => {
+				console.error(err);
+				res.statusCode = 500;
+				res.send('Internal Server Error.');
+			});
+	});
+
+	app.get('/counts/subscribers', (req, res) => {
+		twitchCountsClient.getSubscribers(twitchChannelName)
+			.then(subscribersCount => {
+				res.statusCode = 200;
+				res.send(`${subscribersCount}`);
+			})
+			.catch(err => {
+				console.error(err);
+				res.statusCode = 500;
+				res.send('Internal Server Error.');
+			});
 	});
 
 	app.listen(port, async () => {

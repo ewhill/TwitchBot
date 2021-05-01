@@ -232,11 +232,16 @@ class TwitchWebhookClient {
 
 	isWebhookCallbackRequestValid(req) {
 		if (req && req.headers && req.headers['x-hub-signature']) {
+			if(req.headers['x-hub-signature'].indexOf('=') < 0) {
+				return false;
+			}
+
     		const [ alg, hash ] = 
     			req.headers['x-hub-signature'].split('=');
     		const computed = 
     			crypto.createHmac(alg, this._secret)
     				.update(response).digest('hex');
+    				
     		if(hash !== computed) {
     			return false;
     		}
